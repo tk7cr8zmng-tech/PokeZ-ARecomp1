@@ -102,8 +102,9 @@ static const char *build_version(const uint8_t id[8]) {
 }
 static bool build_is_za(const uint8_t id[8]) { return build_version(id) && memcmp(id, BUILD_ID, 8); }
 // The release tag this build is (also names the release files; Makefile / tools/bundle_macos.sh / make_dmg.sh read
-// it): ZA Recomp's v<major>.<minor>.<patch> (Hexveil404/PokeZ-ARecomp releases).
-#define LARECOMP_VERSION "v0.1.37"
+// it): v<major>.<minor>.<patch>, compared with the tags of UPDATE_REPO's releases. Keep it equal to the release tag the
+// build ships as, or the start screen offers an "update" to the version already installed.
+#define LARECOMP_VERSION "v0.1.39"
 extern "C" void rt_launcher_log(const char *fmt, ...);  // runtime/launcher_log.c: logs/launcher.log and stderr
 extern "C" const char *rt_version(void) { return LARECOMP_VERSION; }  // (runtime/main.c: the log's first line)
 extern "C" const char *larecomp_version(void) { return LARECOMP_VERSION; }  // (the shader caches' tag)
@@ -120,7 +121,12 @@ static void lang_update(void) { g_pt = settings_ui_portuguese(); }  // (runtime/
 // The start screen asks GitHub for the project's releases once per launch (a background curl, which macOS and
 // Windows 10+ ship) and offers the best one if it outranks this build: any v<x.y.z> above every beta, betas by
 // number; other tags are ignored. Offline / no curl / anything unexpected: nothing is shown.
-#define RELEASES_URL "https://api.github.com/repos/TheMagnumChad/PokeZ-ARecomp-Online/releases?per_page=100"
+// UPDATE_REPO is the GitHub owner/repo whose releases the start screen offers; a build can override it with
+// -DUPDATE_REPO='"owner/repo"'. tools/lumiose/linux_launcher_update.py has the same default (REPO).
+#ifndef UPDATE_REPO
+#define UPDATE_REPO "tk7cr8zmng-tech/PokeZ-ARecomp1"
+#endif
+#define RELEASES_URL "https://api.github.com/repos/" UPDATE_REPO "/releases?per_page=100"
 
 static long long tag_rank(const std::string &t) {
     int n, a, b, c;
@@ -143,6 +149,7 @@ static std::string tag_label(const std::string &t, bool with_word) {
 static std::string g_update_tag;  // a newer release's tag (g_update_lock)
 static std::string g_update_url;  // its Windows zip (browser_download_url: the download counts on GitHub as a click)
 static long long g_update_size;
+static std::string g_update_sha256;  // the zip's SHA-256 (64 lowercase hex) from the asset's GitHub "digest", or empty
 static pthread_mutex_t g_update_lock = PTHREAD_MUTEX_INITIALIZER;
 #ifdef __linux__
 #define UPDATE_ASSET "Lumiose-Online-linux-experimental.zip"
@@ -179,39 +186,60 @@ static void *update_thread(void *) {
         }
         remove(out.c_str());
     }
-    std::string best, url;
+    std::string best, url, sha;
     long long best_rank = tag_rank(LARECOMP_VERSION), size = 0;
     for (size_t at = 0; (at = body.find("\"tag_name\"", at)) != std::string::npos;) {
         size_t q1 = body.find('"', body.find(':', at) + 1), q2 = q1 == std::string::npos ? q1 : body.find('"', q1 + 1);
         if (q2 == std::string::npos) break;
         std::string tag = body.substr(q1 + 1, q2 - q1 - 1);
         if (tag_rank(tag) > best_rank) {
-            best_rank = tag_rank(tag), best = tag, url.clear(), size = 0;
-            // its assets follow the tag in GitHub's release object, up to the next release's tag
-            size_t end = body.find("\"tag_name\"", q2), u = q2;
+            best_rank = tag_rank(tag), best = tag, url.clear(), sha.clear(), size = 0;
+            // its assets follow the tag in GitHub's release object, up to the next release's tag; each asset's "size"
+            // and "digest" come before its own link and after the previous asset's link (lo)
+            size_t end = body.find("\"tag_name\"", q2), u = q2, lo = q2;
             while ((u = body.find("\"browser_download_url\"", u)) != std::string::npos && u < end) {
                 size_t a = body.find('"', body.find(':', u) + 1), b = a == std::string::npos ? a : body.find('"', a + 1);
                 if (b == std::string::npos) break;
                 std::string link = body.substr(a + 1, b - a - 1);
                 if (link.size() > strlen(UPDATE_ASSET) && link.compare(link.size() - strlen(UPDATE_ASSET), std::string::npos, UPDATE_ASSET) == 0) {
                     url = link;
-                    size_t sz = body.rfind("\"size\"", u);  // (the asset's own size comes before its link)
-                    if (sz != std::string::npos && sz > q2) size = atoll(body.c_str() + body.find(':', sz) + 1);
+                    size_t sz = body.rfind("\"size\"", u);
+                    if (sz != std::string::npos && sz > lo) size = atoll(body.c_str() + body.find(':', sz) + 1);
+                    size_t dg = body.rfind("\"digest\"", u);  // "digest": "sha256:<64 hex>" (or null)
+                    if (dg != std::string::npos && dg > lo) {
+                        size_t v = body.find_first_not_of(" \t\r\n", body.find(':', dg) + 1);
+                        if (v != std::string::npos && body.compare(v, 8, "\"sha256:") == 0 && v + 8 + 64 < body.size() &&
+                            body[v + 8 + 64] == '"') {
+                            std::string hex = body.substr(v + 8, 64);
+                            if (hex.find_first_not_of("0123456789abcdef") == std::string::npos) sha = hex;
+                        }
+                    }
                     break;
                 }
-                u = b;
+                u = lo = b;
             }
         }
         at = q2;
     }
-    if (const char *z = getenv("LARECOMP_UPDATE_ZIP"))  // (test) install this zip: a local file or a link
+    if (const char *z = getenv("LARECOMP_UPDATE_ZIP")) {  // (test) install this zip: a local file or a link
         url = strncmp(z, "http", 4) ? std::string("file:") + z : std::string(z), size = getenv("LARECOMP_UPDATE_SIZE") ? atoll(getenv("LARECOMP_UPDATE_SIZE")) : 0;
+        const char *s = getenv("LARECOMP_UPDATE_SHA256");  // (test) its checksum; a local test zip may go without
+        sha = s ? s : "";
+    }
+    // Never install a download that can't be checked: a release asset without a GitHub digest is shown as available,
+    // without "Update now" (the player downloads it from the releases page instead).
+    if (!url.empty() && url.compare(0, 5, "file:") != 0 && sha.size() != 64) {
+        rt_launcher_log("[launcher] update %s has no SHA-256 digest for %s: not installable from the start screen\n",
+                        best.c_str(), UPDATE_ASSET);
+        url.clear();
+    }
     if (!best.empty()) rt_launcher_log("[launcher] update available: %s (this build %s)%s\n", best.c_str(), LARECOMP_VERSION,
                                url.empty() ? "" : ", installable from the start screen");
     pthread_mutex_lock(&g_update_lock);
     g_update_tag = best;
     g_update_url = url;
     g_update_size = size;
+    g_update_sha256 = sha;
     pthread_mutex_unlock(&g_update_lock);
     return NULL;
 }
@@ -232,6 +260,7 @@ static std::string g_updated_tag;  // this run follows an update to it ("Updated
 
 #ifdef _WIN32
 #include <filesystem>
+#include "cache_sha256.h"
 namespace fs = std::filesystem;
 static fs::path u8p(const std::string &s) { return fs::u8path(s); }
 
@@ -243,9 +272,35 @@ static void upd_fail(const char *what) {
     g_upd_state = UPD_FAILED;
 }
 
+// The downloaded zip against the release's size and SHA-256, before anything is unpacked
+static bool upd_verify(const std::string &zip, long long size, const std::string &sha) {
+    FILE *f = _wfopen(u8p(zip).c_str(), L"rb");
+    if (!f) return upd_fail("the download can't be read"), false;
+    CacheSha256 h;
+    std::vector<unsigned char> buf(1 << 20);
+    long long got = 0;
+    size_t n;
+    while ((n = fread(buf.data(), 1, buf.size(), f)) > 0) h.add(buf.data(), n), got += (long long)n;
+    bool bad = ferror(f) != 0;
+    fclose(f);
+    if (bad) return upd_fail("the download can't be read"), false;
+    if (size > 0 && got != size) {
+        rt_launcher_log("[update] size %lld, the release says %lld\n", got, size);
+        return upd_fail("the download is incomplete"), false;
+    }
+    std::string actual = h.finish();
+    if (actual != sha) {
+        rt_launcher_log("[update] SHA-256 %s, the release says %s\n", actual.c_str(), sha.c_str());
+        return upd_fail("the download's checksum doesn't match the release"), false;
+    }
+    rt_launcher_log("[update] SHA-256 verified: %s\n", actual.c_str());
+    return true;
+}
+
 static void *upd_thread(void *) {
     pthread_mutex_lock(&g_update_lock);
-    std::string url = g_update_url, tag = g_update_tag;
+    std::string url = g_update_url, tag = g_update_tag, sha = g_update_sha256;
+    long long size = g_update_size;
     pthread_mutex_unlock(&g_update_lock);
     std::string dir = rt_exe_dir(), work = dir + "\\_update", zip = work + "\\" UPDATE_ASSET;
     std::error_code ec;
@@ -265,6 +320,13 @@ static void *upd_thread(void *) {
                             "-o", zip.c_str(), url.c_str(), NULL};
         PlatProc p = plat_spawn(av, NULL, false);
         if (!p || plat_proc_wait(p, true) != 0) return upd_fail("the download didn't finish"), (void *)NULL;
+    }
+    if (sha.size() == 64) {
+        if (!upd_verify(zip, size, sha)) return fs::remove_all(u8p(work), ec), (void *)NULL;
+    } else if (url.compare(0, 5, "file:") == 0) {
+        rt_launcher_log("[update] local test zip without LARECOMP_UPDATE_SHA256: not verified\n");
+    } else {
+        return upd_fail("the release has no checksum"), (void *)NULL;  // (update_thread doesn't offer these)
     }
     g_upd_state = UPD_UNPACK;
     {

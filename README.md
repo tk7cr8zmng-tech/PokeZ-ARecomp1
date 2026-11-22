@@ -56,6 +56,23 @@ menu, I the Satchel, B the Boxes, P the Pokédex, M the map. Full list: [docs/PC
 - If the game crashes on Vulkan (often on AMD cards), set **F1 > Display > Graphics API: DirectX 12**.
 - For low FPS, lower the internal resolution or turn on Dynamic resolution.
 
+### Lumiose server
+
+The launcher only lets the game talk to one Lumiose server, `135.148.167.226:27777` by default. To change it, create
+`lumiose-server.txt` next to `Lumiose Online.exe` with one line such as `192.168.1.20:27777`, or set the
+`LUMIOSE_SERVER` environment variable. Only an IPv4 address and port work, not a host name. The address must be the
+one the Lumiose mod connects to, because the launcher blocks every other destination. Updates keep this file.
+
+## Publishing a release (in-app updates)
+
+**Update now** on the start screen installs releases from this repo. For each release:
+
+1. Set the same version in `runtime/ui/launcher.mm` (`LARECOMP_VERSION`) and `tools/lumiose/entry.py`
+   (`LAUNCHER_VERSION`), for example `v0.1.39`. `tools/lumiose/test_entry.py` checks that they match.
+2. Build the release folder and zip it as `ZA-Recomp-windows.zip`, with a top-level `ZA Recomp` folder.
+3. Create a GitHub release whose tag is exactly that version and upload the zip. GitHub records the zip's SHA-256,
+   and the launcher refuses to install a download that doesn't match it.
+
 ## Building from source
 
 The build uses MSYS2 UCRT64 (clang, SDL3, FFmpeg, shaderc, Vulkan headers) plus Python 3. See the

@@ -81,5 +81,57 @@ class EntryTests(unittest.TestCase):
             finally:
                 os.chdir(cwd)
 
+    def test_normalize_server(self):
+        self.assertEqual(entry.normalize_server(' 10.0.0.5:27777 '), '10.0.0.5:27777')
+        self.assertEqual(entry.normalize_server('10.0.0.5:080'), '10.0.0.5:80')
+        for bad in ('10.0.0.5', 'example.com:27777', '10.0.0.256:1', '10.0.0.5:0', '10.0.0.5:65536', ':27777', '010.0.0.5:1'):
+            with self.assertRaises(ValueError, msg=bad): entry.normalize_server(bad)
+
+    def test_server_override_sources(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            with patch.object(entry, 'ROOT', root), patch.dict(os.environ, {}, clear=False):
+                os.environ.pop('LUMIOSE_SERVER', None)
+                self.assertIsNone(entry.server_override())
+                (root / entry.SERVER_FILE).write_text('# my server\n\n 192.168.1.20:27777\n', encoding='utf-8')
+                self.assertEqual(entry.server_override(), '192.168.1.20:27777')
+                os.environ['LUMIOSE_SERVER'] = '10.1.2.3:4000'  # (the environment wins over the file)
+                self.assertEqual(entry.server_override(), '10.1.2.3:4000')
+                os.environ['LUMIOSE_SERVER'] = 'not-an-address'
+                with self.assertRaisesRegex(RuntimeError, 'LUMIOSE_SERVER is invalid'): entry.server_override()
+
+    def test_server_file_updates_config(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp); (root / 'lumiose').mkdir(); (root / 'extracted').mkdir()
+            (root / 'lumiose/update-state.json').write_text('{}')
+            (root / 'lumiose/config.json').write_text(json.dumps({'server': '127.0.0.1:1'}))
+            (root / 'lumiose/launcher-code-revision.txt').write_text(entry.GAME_CODE_REVISION)
+            (root / entry.SERVER_FILE).write_text('192.168.1.20:27777\n')
+            cwd = os.getcwd()
+            try:
+                with patch.object(entry, 'ROOT', root), patch.dict(os.environ, {}, clear=False), \
+                     patch.object(entry, 'launch'):
+                    os.environ.pop('LUMIOSE_SERVER', None)
+                    entry.main()
+                self.assertEqual(json.loads((root / 'lumiose/config.json').read_text())['server'], '192.168.1.20:27777')
+            finally:
+                os.chdir(cwd)
+
+    def test_no_override_keeps_configured_server(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp); (root / 'lumiose').mkdir(); (root / 'extracted').mkdir()
+            (root / 'lumiose/update-state.json').write_text('{}')
+            (root / 'lumiose/config.json').write_text(json.dumps({'server': '127.0.0.1:1'}))
+            (root / 'lumiose/launcher-code-revision.txt').write_text(entry.GAME_CODE_REVISION)
+            cwd = os.getcwd()
+            try:
+                with patch.object(entry, 'ROOT', root), patch.dict(os.environ, {}, clear=False), \
+                     patch.object(entry, 'launch'):
+                    os.environ.pop('LUMIOSE_SERVER', None)
+                    entry.main()
+                self.assertEqual(json.loads((root / 'lumiose/config.json').read_text())['server'], '127.0.0.1:1')
+            finally:
+                os.chdir(cwd)
+
 if __name__ == '__main__':
     unittest.main()

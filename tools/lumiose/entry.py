@@ -9,7 +9,7 @@ from datetime import datetime
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME_CODE_REVISION = 'launcher-title-offset-null-guard-v1'
-LAUNCHER_VERSION = 'v0.1.38.2'
+LAUNCHER_VERSION = 'v0.1.39'  # (= runtime/ui/launcher.mm LARECOMP_VERSION and the release tag; test_entry.py checks)
 sys.path[:0] = [str(ROOT / 'python-deps'), str(ROOT / 'tools' / 'lumiose')]
 from auto_launch import launch
 from platform_paths import EXECUTABLE, GAME_LIBRARY, lock_file
@@ -52,6 +52,47 @@ def check_game_version():
         '  2. Delete (or rename) the "extracted" folder in ' + str(ROOT) + '.\n'
         '  3. Open Lumiose Online.exe again and choose the base game, the 2.0.2 update and the DLC together.\n'
         'Your saves are not changed.')
+
+
+# The Lumiose relay the runtime may talk to (runtime/hle/lumiose_network.c: LUMIOSE_TEST_SERVER, an allow-list - every
+# other destination is blocked). The mod (subsdk9) chooses where it connects; this must name that same IPv4:port.
+DEFAULT_SERVER = '135.148.167.226:27777'
+SERVER_FILE = 'lumiose-server.txt'  # (next to Lumiose Online.exe; an update's files never include it, so it is kept)
+
+
+def normalize_server(value):
+    """'a.b.c.d:port' in the exact form the runtime compares (plain decimal), or a ValueError naming the problem."""
+    import ipaddress
+    host, sep, port = value.strip().rpartition(':')
+    if not sep or not host or not port.isdigit():
+        raise ValueError(f'"{value.strip()}" is not an address and port like 135.148.167.226:27777')
+    try:
+        ip = ipaddress.IPv4Address(host)
+    except ValueError:
+        raise ValueError(f'"{host}" is not an IPv4 address (host names are not supported)') from None
+    if not 1 <= int(port) <= 65535:
+        raise ValueError(f'port {port} is outside 1-65535')
+    return f'{ip}:{int(port)}'
+
+
+def server_override():
+    """The player's server choice: LUMIOSE_SERVER, else the first non-comment line of lumiose-server.txt; None when
+    neither is set (the configured server is kept). An invalid value stops the launcher with the reason."""
+    value, source = os.environ.get('LUMIOSE_SERVER', '').strip(), 'LUMIOSE_SERVER'
+    if not value:
+        path = ROOT / SERVER_FILE
+        try:
+            lines = path.read_text(encoding='utf-8-sig').splitlines()
+        except OSError:
+            lines = []
+        value = next((l.strip() for l in lines if l.strip() and not l.lstrip().startswith('#')), '')
+        source = str(path)
+    if not value:
+        return None
+    try:
+        return normalize_server(value)
+    except ValueError as e:
+        raise RuntimeError(f'The Lumiose server in {source} is invalid: {e}.') from None
 
 
 def desktop_notice(title, message, error=False):
@@ -100,10 +141,11 @@ def main():
                 raise RuntimeError('Game setup was not completed. Start Lumiose Online again when you are ready.')
         log_event('Game setup check completed')
     check_game_version()  # 11-22: 2.0.2 only, with the fix, before any preparation
+    server = server_override()
     if first_setup:
         log_event('Preparing bundled Lumiose for first launch')
         cmd = [sys.executable, str(ROOT / 'tools/lumiose/setup.py'), '--install', str(ROOT),
-               '--zig', str(ROOT / 'zig'), '--server', '135.148.167.226:27777']
+               '--zig', str(ROOT / 'zig'), '--server', server or DEFAULT_SERVER]
         desktop_notice('Lumiose Online', 'Preparing the online mod. This may take several minutes.')
         if subprocess.run(cmd, cwd=ROOT).returncode:
             raise RuntimeError('Lumiose preparation did not finish; see the message above.')
@@ -116,6 +158,9 @@ def main():
     cfg.update(install=str(ROOT), reference=str(ROOT / 'lumiose/subsdk9'),
                vanilla=str(ROOT / 'extracted' / GAME_LIBRARY), zig=str(ROOT / 'zig'),
                cache=str(ROOT / 'extracted/.gamebuild'))
+    if server and cfg.get('server') != server:
+        log_event(f'Lumiose server set to {server} (was {cfg.get("server")})')
+        cfg['server'] = server
     config.write_text(json.dumps(cfg, indent=2) + '\n', encoding='utf-8')
     log_event('Checking active Lumiose build and updates')
     launch(config, prepare_only=os.environ.get('LUMIOSE_RELEASE_TEST_PREPARE_ONLY') == '1')
