@@ -63,14 +63,22 @@ The launcher only lets the game talk to one Lumiose server, `135.148.167.226:277
 `LUMIOSE_SERVER` environment variable. Only an IPv4 address and port work, not a host name. The address must be the
 one the Lumiose mod connects to, because the launcher blocks every other destination. Updates keep this file.
 
-### Seasonal launcher themes
+### Seasonal greetings (launcher only)
 
-The start screen celebrates the season. These are launcher-only effects and don't change the game:
+From v0.1.39, `Lumiose Online.exe` shows a short seasonal greeting while the launcher starts behind it. It never adds a
+wait, and a click or any key closes it. The game isn't changed.
 
-- **Thanksgiving** (15–30 November): falling autumn leaves, a warm glow and a greeting in the top bar.
+- **Thanksgiving** (15–30 November): autumn leaves falling across a dusk skyline, with "Happy Thanksgiving from Lumiose
+  Online!" (in Portuguese on Portuguese systems).
 
-To force a theme for testing or screenshots, set `LARECOMP_SEASON` to `thanksgiving`. Set it to `off` to turn the
-themes off.
+Set `LARECOMP_SEASON` to `thanksgiving` to force the greeting, or to `off` to hide it. `"Lumiose Online.exe"
+--splash-test` shows the greeting alone, without starting anything.
+
+`Lumiose Online.exe` is built from `tools/lumiose/windows_launcher.c` and `splash_draw.h` with clang and lld only:
+`tools/lumiose/build_windows_launcher.sh <extracted release folder> <out.exe>`.
+
+The start-screen version of the themes in `runtime/ui/launcher.mm` needs a full rebuild of `lasrecomp.exe`, which
+this repo can't do yet: the release's build system (Makefile, third-party libraries) wasn't published with it.
 
 ## Publishing a release (in-app updates)
 
