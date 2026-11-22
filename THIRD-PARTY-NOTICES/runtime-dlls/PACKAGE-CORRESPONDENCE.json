@@ -1,0 +1,96 @@
+{
+  "scope": "SHA256 comparison of dependency DLLs against official MSYS2 archive contents; not a full legal attestation",
+  "packages": [
+    {
+      "package": "mingw-w64-ucrt-x86_64-shaderc-2026.4-1-any.pkg.tar.zst",
+      "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-shaderc-2026.4-1-any.pkg.tar.zst",
+      "matches": {
+        "libshaderc_shared.dll": {
+          "matches": true,
+          "sha256": "331df8a45983735b823c893a9b872c3414af6eadca9fa189d0b6dfe97960b3cf"
+        }
+      },
+      "licenses": [
+        ".BUILDINFO",
+        ".PKGINFO",
+        "ucrt64/share/licenses/shaderc/LICENSE"
+      ]
+    },
+    {
+      "package": "mingw-w64-ucrt-x86_64-sdl3-3.4.18-1-any.pkg.tar.zst",
+      "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-sdl3-3.4.18-1-any.pkg.tar.zst",
+      "matches": {
+        "SDL3.dll": {
+          "matches": true,
+          "sha256": "7c856cc78c474d4b6463502ecfcfdf2b5f331c6aab14309fcca374a73009305a"
+        }
+      },
+      "licenses": [
+        ".BUILDINFO",
+        ".PKGINFO",
+        "ucrt64/share/licenses/SDL3/LICENSE.txt"
+      ]
+    },
+    {
+      "package": "mingw-w64-ucrt-x86_64-libiconv-1.19-1-any.pkg.tar.zst",
+      "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libiconv-1.19-1-any.pkg.tar.zst",
+      "matches": {
+        "libiconv-2.dll": {
+          "matches": true,
+          "sha256": "94ec68fb8d342b6c91b6b48a8d95092819cdcd006a7166e0b68062f946afd08a"
+        }
+      },
+      "licenses": [
+        ".BUILDINFO",
+        ".PKGINFO",
+        "ucrt64/share/licenses/libiconv/COPYING",
+        "ucrt64/share/licenses/libiconv/COPYING.LIB",
+        "ucrt64/share/licenses/libiconv/README",
+        "ucrt64/share/licenses/libiconv/libcharset/COPYING.LIB"
+      ]
+    },
+    {
+      "package": "mingw-w64-ucrt-x86_64-libgcc-16.2.0-6-any.pkg.tar.zst",
+      "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libgcc-16.2.0-6-any.pkg.tar.zst",
+      "dll": "libgcc_s_seh-1.dll",
+      "matches": true,
+      "sha256": "791ebf66e99c7c1b4ed3666468cec45a0172b4c8942ac6c84c3e9cab3e1b5270",
+      "licenses": [
+        ".BUILDINFO",
+        ".PKGINFO",
+        "ucrt64/share/licenses/libgcc/COPYING.RUNTIME",
+        "ucrt64/share/licenses/libgcc/COPYING3"
+      ]
+    },
+    {
+      "package": "mingw-w64-ucrt-x86_64-libstdc++-16.2.0-6-any.pkg.tar.zst",
+      "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libstdc%2B%2B-16.2.0-6-any.pkg.tar.zst",
+      "dll": "libstdc++-6.dll",
+      "matches": true,
+      "sha256": "4e4822dc4aaa99383f581dae7ab9464ae89346c5ca742f7efbcdebe20b0fe7b5",
+      "licenses": [
+        ".BUILDINFO",
+        ".PKGINFO",
+        "ucrt64/share/licenses/libstdc++/COPYING.RUNTIME",
+        "ucrt64/share/licenses/libstdc++/COPYING3"
+      ]
+    },
+    {
+      "package": "mingw-w64-ucrt-x86_64-libwinpthread-14.0.0.r495.g63ebe6cdb-2-any.pkg.tar.zst",
+      "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libwinpthread-14.0.0.r495.g63ebe6cdb-2-any.pkg.tar.zst",
+      "matches": true,
+      "sha256": "817e5b2636f532666e8f255e225af75e9d0c41b141512fde45264070a65b1c92",
+      "licenses": [
+        ".BUILDINFO",
+        ".PKGINFO",
+        "ucrt64/share/licenses/libwinpthread/COPYING"
+      ]
+    }
+  ],
+  "ffmpeg": {
+    "version": "9.0.2",
+    "source_url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz",
+    "source_sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
+    "evidence": "Source archive hash matches build recipe; embedded configure flags match. Not independently rebuilt."
+  }
+}

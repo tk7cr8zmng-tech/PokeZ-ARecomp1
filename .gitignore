@@ -1,0 +1,58 @@
+# ---- Nintendo / game files: NEVER commit ----
+*.xci
+*.nsp
+*.nsz
+*.xcz
+*.nca
+*.nso
+*.nro
+*.npdm
+prod.keys
+title.keys
+*.keys
+exefs/
+romfs/
+extracted/
+subsdk*
+main
+*.bfttf
+*.bfotf
+
+# ---- Generated game code / caches ----
+/gamelib/
+/gen/
+/cache/
+/build/
+*.o
+*.obj
+
+# ---- Player data ----
+/save/
+/saves/
+/logs/
+/screenshots/
+/mods/
+larecomp.ini
+*.log
+
+# ---- Prebuilt binaries & bundled toolchains (ship in Releases instead) ----
+*.exe
+*.dll
+*.dll.a
+*.pdb
+*.zip
+/python/
+/python-deps/
+/zig/
+/lasgen/
+/zaprompts/
+/zaimport/
+/dx12/
+/D3D12/
+/lumiose/
+
+# ---- Misc ----
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
