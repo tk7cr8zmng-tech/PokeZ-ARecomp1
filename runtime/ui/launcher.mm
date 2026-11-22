@@ -104,7 +104,7 @@ static bool build_is_za(const uint8_t id[8]) { return build_version(id) && memcm
 // The release tag this build is (also names the release files; Makefile / tools/bundle_macos.sh / make_dmg.sh read
 // it): v<major>.<minor>.<patch>, compared with the tags of UPDATE_REPO's releases. Keep it equal to the release tag the
 // build ships as, or the start screen offers an "update" to the version already installed.
-#define LARECOMP_VERSION "v0.1.39"
+#define LARECOMP_VERSION "v0.1.40"
 extern "C" void rt_launcher_log(const char *fmt, ...);  // runtime/launcher_log.c: logs/launcher.log and stderr
 extern "C" const char *rt_version(void) { return LARECOMP_VERSION; }  // (runtime/main.c: the log's first line)
 extern "C" const char *larecomp_version(void) { return LARECOMP_VERSION; }  // (the shader caches' tag)
@@ -1804,7 +1804,7 @@ static void draw_art(ImDrawList *dl, ImVec2 o, ImVec2 ds) {
 
 // ---- seasonal themes: the start screen only (nothing in game). Chosen by the local date; LARECOMP_SEASON=<name> or
 // =off overrides it (screenshots, testing, or a player who'd rather not). All drawn here: no images, nothing of the game's.
-enum Season { SEASON_NONE, SEASON_THANKSGIVING };
+enum Season { SEASON_NONE, SEASON_THANKSGIVING, SEASON_CHRISTMAS };
 static Season season_now(void) {
     static int cached = -1;
     if (cached >= 0) return (Season)cached;
@@ -1812,6 +1812,7 @@ static Season season_now(void) {
     const char *env = getenv("LARECOMP_SEASON");
     if (env && *env && strcmp(env, "auto")) {
         if (!strcmp(env, "thanksgiving")) s = SEASON_THANKSGIVING;
+        else if (!strcmp(env, "christmas")) s = SEASON_CHRISTMAS;
     } else {
         time_t now = time(NULL);
         struct tm lt;
@@ -1822,6 +1823,7 @@ static Season season_now(void) {
 #endif
         int month = lt.tm_mon + 1, day = lt.tm_mday;
         if (month == 11 && day >= 15) s = SEASON_THANKSGIVING;  // (US Thanksgiving: the 4th Thursday, 22-28 November)
+        else if (month == 12 || (month == 1 && day == 1)) s = SEASON_CHRISTMAS;
     }
     if (s != SEASON_NONE) rt_launcher_log("[launcher] seasonal theme: %d\n", (int)s);
     cached = (int)s;
@@ -1849,6 +1851,19 @@ static void season_leaf(ImDrawList *dl, float x, float y, float len, float ang, 
     dl->AddLine(P(x - len / 2 * c, y - len / 2 * s), P(x - len * .72f * c, y - len * .72f * s), IM_COL32(110, 60, 25, 220), 1.4f * g_s);
 }
 
+// a snowflake: six arms with a pair of twigs each, `r` units across, turned by `ang`
+static void season_flake(ImDrawList *dl, float x, float y, float r, float ang, ImU32 col) {
+    for (int i = 0; i < 6; i++) {
+        float a = ang + i * 1.0472f, c = cosf(a), s = sinf(a);
+        dl->AddLine(P(x, y), P(x + r * c, y + r * s), col, 1.3f * g_s);
+        float bx = x + r * .55f * c, by = y + r * .55f * s;
+        for (int side = -1; side <= 1; side += 2) {
+            float b = a + side * 0.7f;
+            dl->AddLine(P(bx, by), P(bx + r * .32f * cosf(b), by + r * .32f * sinf(b)), col, 1.1f * g_s);
+        }
+    }
+}
+
 // over the background, under the pages
 static void season_draw_back(ImDrawList *dl) {
     Season s = season_now();
@@ -1868,6 +1883,43 @@ static void season_draw_back(ImDrawList *dl) {
             float ang = t * (season_rand(i, 7) - 0.5f) * 1.6f + season_rand(i, 8) * 6.283f;
             season_leaf(dl, x, y, size, ang, colors[i % 5]);
         }
+    } else if (s == SEASON_CHRISTMAS) {
+        // a cold blue night from the top, snow settling on the ground
+        dl->AddRectFilledMultiColor(P(0, 0), P(W_, H_ * .5f), IM_COL32(120, 170, 255, 34), IM_COL32(120, 170, 255, 34),
+                                    IM_COL32(120, 170, 255, 0), IM_COL32(120, 170, 255, 0));
+        dl->AddRectFilledMultiColor(P(0, H_ - 70), P(W_, H_), IM_COL32(235, 243, 255, 0), IM_COL32(235, 243, 255, 0),
+                                    IM_COL32(235, 243, 255, 60), IM_COL32(235, 243, 255, 60));
+        int n = (int)(W_ / 1280 * 110);
+        for (int i = 0; i < n; i++) {
+            float depth = season_rand(i, 1);  // far flakes: small, slow, faint
+            float speed = 14 + depth * 34, r = 1.2f + depth * 2.6f;
+            float y = fmodf(t * speed + season_rand(i, 3) * (H_ + 20), H_ + 20) - 10;
+            float x = season_rand(i, 4) * W_ + sinf(t * (0.3f + season_rand(i, 5) * 0.5f) + i) * (6 + depth * 16);
+            int alpha = (int)(110 + depth * 130);
+            if (i % 9 == 0) season_flake(dl, x, y, 5 + depth * 5, t * 0.4f + i, IM_COL32(240, 247, 255, alpha));
+            else dl->AddCircleFilled(P(x, y), r * g_s, IM_COL32(240, 247, 255, alpha), 10);
+        }
+    }
+}
+
+// a string of lights hanging along the bottom of the top bar, twinkling in turn
+static void season_draw_lights(ImDrawList *dl) {
+    static const ImU32 bulbs[] = {IM_COL32(255, 80, 80, 255), IM_COL32(90, 220, 120, 255), IM_COL32(255, 205, 90, 255),
+                                  IM_COL32(110, 170, 255, 255)};
+    float t = (float)ImGui::GetTime(), span = 80;
+    int n = (int)(W_ / span) + 2;
+    for (int i = 0; i < n; i++) {  // the wire: a shallow sag between hooks
+        float x0 = i * span, x1 = x0 + span;
+        dl->AddBezierQuadratic(P(x0, 64), P((x0 + x1) / 2, 80), P(x1, 64), IM_COL32(30, 50, 40, 255), 1.6f * g_s, 12);
+    }
+    for (int i = 0; i < n * 3; i++) {
+        float u = (i % 3 + 0.5f) / 3, x0 = (i / 3) * span, x = x0 + u * span;
+        float y = 64 + 2 * u * (1 - u) * 16 + 5;  // (on the curve, the bulb hanging below it)
+        float glow = 0.55f + 0.45f * sinf(t * 2.2f + i * 1.9f);
+        ImU32 c = bulbs[i % 4];
+        ImU32 halo = (c & 0x00ffffff) | ((ImU32)(70 * glow) << 24);
+        dl->AddCircleFilled(P(x, y), 7 * g_s, halo, 16);
+        dl->AddCircleFilled(P(x, y), 3.2f * g_s, (c & 0x00ffffff) | ((ImU32)(150 + 105 * glow) << 24), 12);
     }
 }
 
@@ -1879,13 +1931,19 @@ static void season_draw_greeting(ImDrawList *dl, float x0) {
     ImU32 col = C_GOLD_HI;
     if (s == SEASON_THANKSGIVING)
         msg = TR("Happy Thanksgiving from Lumiose Online!", "Feliz Dia de Ação de Graças do Lumiose Online!"), col = IM_COL32(255, 196, 120, 255);
+    if (s == SEASON_CHRISTMAS) {
+        season_draw_lights(dl);
+        msg = TR("Merry Christmas from Lumiose Online!", "Feliz Natal do Lumiose Online!"), col = IM_COL32(236, 246, 255, 255);
+    }
     if (!msg) return;
     ImVec2 ts = text_size(F_LABEL, 14, msg);
     float w = ts.x + 40, x = W_ - 24 - 92 - 16 - w;  // (left of the PT | EN switch)
     if (x < x0 + 12) return;  // (a narrow window: the pages come first)
-    dl->AddRectFilled(P(x, 19), P(x + w, 45), IM_COL32(230, 120, 40, 46), 13 * g_s);
-    dl->AddRect(P(x, 19), P(x + w, 45), IM_COL32(242, 160, 70, 120), 13 * g_s, 0, 1.2f * g_s);
+    bool xmas = s == SEASON_CHRISTMAS;
+    dl->AddRectFilled(P(x, 19), P(x + w, 45), xmas ? IM_COL32(200, 40, 50, 70) : IM_COL32(230, 120, 40, 46), 13 * g_s);
+    dl->AddRect(P(x, 19), P(x + w, 45), xmas ? IM_COL32(90, 200, 120, 170) : IM_COL32(242, 160, 70, 120), 13 * g_s, 0, 1.2f * g_s);
     if (s == SEASON_THANKSGIVING) season_leaf(dl, x + 16, 32, 12, -0.6f, IM_COL32(232, 140, 44, 255));
+    if (xmas) season_flake(dl, x + 16, 32, 6, (float)ImGui::GetTime() * 0.5f, IM_COL32(236, 246, 255, 255));
     text(dl, F_LABEL, 14, x + 28, 32 - ts.y / 2, col, msg);
 }
 

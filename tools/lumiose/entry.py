@@ -9,7 +9,7 @@ from datetime import datetime
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME_CODE_REVISION = 'launcher-title-offset-null-guard-v1'
-LAUNCHER_VERSION = 'v0.1.39'  # (= runtime/ui/launcher.mm LARECOMP_VERSION and the release tag; test_entry.py checks)
+LAUNCHER_VERSION = 'v0.1.40'  # (= runtime/ui/launcher.mm LARECOMP_VERSION and the release tag; test_entry.py checks)
 sys.path[:0] = [str(ROOT / 'python-deps'), str(ROOT / 'tools' / 'lumiose')]
 from auto_launch import launch
 from platform_paths import EXECUTABLE, GAME_LIBRARY, lock_file

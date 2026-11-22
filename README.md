@@ -68,8 +68,9 @@ one the Lumiose mod connects to, because the launcher blocks every other destina
 The start screen celebrates the season. These are launcher-only effects and don't change the game:
 
 - **Thanksgiving** (15–30 November): falling autumn leaves, a warm glow and a greeting in the top bar.
+- **Christmas** (1 December – 1 January): falling snow, twinkling lights along the top bar and a greeting.
 
-To force a theme for testing or screenshots, set `LARECOMP_SEASON` to `thanksgiving`. Set it to `off` to turn the
+To force a theme for testing or screenshots, set `LARECOMP_SEASON` to `thanksgiving` or `christmas`. Set it to `off` to turn the
 themes off.
 
 ## Publishing a release (in-app updates)
