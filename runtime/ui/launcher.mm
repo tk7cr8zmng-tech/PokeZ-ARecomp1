@@ -1802,6 +1802,93 @@ static void draw_art(ImDrawList *dl, ImVec2 o, ImVec2 ds) {
         dl->AddCircleFilled(A(60 + i * 120.0f, i & 1 ? 696 : 690), 2 * k, IM_COL32(242, 181, 68, i & 1 ? 150 : 180));
 }
 
+// ---- seasonal themes: the start screen only (nothing in game). Chosen by the local date; LARECOMP_SEASON=<name> or
+// =off overrides it (screenshots, testing, or a player who'd rather not). All drawn here: no images, nothing of the game's.
+enum Season { SEASON_NONE, SEASON_THANKSGIVING };
+static Season season_now(void) {
+    static int cached = -1;
+    if (cached >= 0) return (Season)cached;
+    Season s = SEASON_NONE;
+    const char *env = getenv("LARECOMP_SEASON");
+    if (env && *env && strcmp(env, "auto")) {
+        if (!strcmp(env, "thanksgiving")) s = SEASON_THANKSGIVING;
+    } else {
+        time_t now = time(NULL);
+        struct tm lt;
+#ifdef _WIN32
+        localtime_s(&lt, &now);
+#else
+        localtime_r(&now, &lt);
+#endif
+        int month = lt.tm_mon + 1, day = lt.tm_mday;
+        if (month == 11 && day >= 15) s = SEASON_THANKSGIVING;  // (US Thanksgiving: the 4th Thursday, 22-28 November)
+    }
+    if (s != SEASON_NONE) rt_launcher_log("[launcher] seasonal theme: %d\n", (int)s);
+    cached = (int)s;
+    return s;
+}
+
+static float season_rand(int i, int salt) {  // 0..1, fixed per particle
+    uint32_t h = (uint32_t)i * 2654435761u ^ (uint32_t)salt * 2246822519u;
+    h ^= h >> 15, h *= 2246822507u, h ^= h >> 13, h *= 3266489909u, h ^= h >> 16;
+    return (h & 0xffffff) / (float)0xffffff;
+}
+
+// an autumn leaf: a pointed oval with a stem, `len` units long, turned by `ang`
+static void season_leaf(ImDrawList *dl, float x, float y, float len, float ang, ImU32 col) {
+    static const float shape[][2] = {{1, 0}, {.55f, .34f}, {0, .42f}, {-.55f, .3f}, {-.9f, 0}, {-.55f, -.3f}, {0, -.42f}, {.55f, -.34f}};
+    float c = cosf(ang), s = sinf(ang);
+    ImVec2 pts[8];
+    for (int i = 0; i < 8; i++) {
+        float px = shape[i][0] * len / 2, py = shape[i][1] * len / 2;
+        pts[i] = P(x + px * c - py * s, y + px * s + py * c);
+    }
+    dl->AddConvexPolyFilled(pts, 8, col);
+    float vein = len * .45f;
+    dl->AddLine(P(x - vein * c, y - vein * s), P(x + vein * c, y + vein * s), IM_COL32(90, 45, 15, 120), 1.0f * g_s);
+    dl->AddLine(P(x - len / 2 * c, y - len / 2 * s), P(x - len * .72f * c, y - len * .72f * s), IM_COL32(110, 60, 25, 220), 1.4f * g_s);
+}
+
+// over the background, under the pages
+static void season_draw_back(ImDrawList *dl) {
+    Season s = season_now();
+    if (s == SEASON_NONE) return;
+    float t = (float)ImGui::GetTime();
+    if (s == SEASON_THANKSGIVING) {
+        // a warm harvest glow rising from the bottom
+        dl->AddRectFilledMultiColor(P(0, H_ * .45f), P(W_, H_), IM_COL32(230, 120, 40, 0), IM_COL32(230, 120, 40, 0),
+                                    IM_COL32(230, 120, 40, 46), IM_COL32(230, 120, 40, 46));
+        static const ImU32 colors[] = {IM_COL32(232, 140, 44, 235), IM_COL32(204, 78, 38, 230), IM_COL32(242, 186, 70, 235),
+                                       IM_COL32(168, 92, 42, 225), IM_COL32(220, 112, 30, 235)};
+        int n = (int)(W_ / 1280 * 42);
+        for (int i = 0; i < n; i++) {
+            float speed = 22 + season_rand(i, 1) * 26, size = 16 + season_rand(i, 2) * 16;
+            float y = fmodf(t * speed + season_rand(i, 3) * (H_ + 60), H_ + 60) - 30;
+            float x = season_rand(i, 4) * W_ + sinf(t * (0.5f + season_rand(i, 5) * 0.6f) + i) * (18 + season_rand(i, 6) * 26);
+            float ang = t * (season_rand(i, 7) - 0.5f) * 1.6f + season_rand(i, 8) * 6.283f;
+            season_leaf(dl, x, y, size, ang, colors[i % 5]);
+        }
+    }
+}
+
+// the greeting in the top bar, between the pages (ending at x0) and the PT | EN switch, when there's room
+static void season_draw_greeting(ImDrawList *dl, float x0) {
+    Season s = season_now();
+    if (s == SEASON_NONE) return;
+    const char *msg = NULL;
+    ImU32 col = C_GOLD_HI;
+    if (s == SEASON_THANKSGIVING)
+        msg = TR("Happy Thanksgiving from Lumiose Online!", "Feliz Dia de Ação de Graças do Lumiose Online!"), col = IM_COL32(255, 196, 120, 255);
+    if (!msg) return;
+    ImVec2 ts = text_size(F_LABEL, 14, msg);
+    float w = ts.x + 40, x = W_ - 24 - 92 - 16 - w;  // (left of the PT | EN switch)
+    if (x < x0 + 12) return;  // (a narrow window: the pages come first)
+    dl->AddRectFilled(P(x, 19), P(x + w, 45), IM_COL32(230, 120, 40, 46), 13 * g_s);
+    dl->AddRect(P(x, 19), P(x + w, 45), IM_COL32(242, 160, 70, 120), 13 * g_s, 0, 1.2f * g_s);
+    if (s == SEASON_THANKSGIVING) season_leaf(dl, x + 16, 32, 12, -0.6f, IM_COL32(232, 140, 44, 255));
+    text(dl, F_LABEL, 14, x + 28, 32 - ts.y / 2, col, msg);
+}
+
 // ---- first PLAY ever: the aspect ratio question, then how to open the in-game menu
 static bool g_tip_test;  // (LARECOMP_LAUNCHER_SHOT=<frame>:tip / :aspect)
 static bool g_video_test;  // (LARECOMP_LAUNCHER_SHOT=<frame>:video - the recommended video settings question)
@@ -2646,6 +2733,7 @@ extern "C" void launcher_run(const char *root) {
             } else {
                 bg->AddRectFilled(P(0, 0), P(W_, H_), IM_COL32(4, 10, 19, 150));
             }
+            season_draw_back(bg);
 
             ImGui::SetNextWindowPos(ImVec2(0, 0));
             ImGui::SetNextWindowSize(ds);
@@ -2688,6 +2776,7 @@ extern "C" void launcher_run(const char *root) {
                      tab_names[i]);
                 tx += tw + 4;
             }
+            season_draw_greeting(dl, tx);
             {  // PT | EN
                 float sw = 92, sx = W_ - 24 - sw, sy = 17, sh = 30;
                 dl->AddRectFilled(P(sx, sy), P(sx + sw, sy + sh), IM_COL32(255, 255, 255, 18), sh / 2 * g_s);

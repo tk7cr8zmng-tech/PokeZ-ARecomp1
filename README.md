@@ -63,6 +63,15 @@ The launcher only lets the game talk to one Lumiose server, `135.148.167.226:277
 `LUMIOSE_SERVER` environment variable. Only an IPv4 address and port work, not a host name. The address must be the
 one the Lumiose mod connects to, because the launcher blocks every other destination. Updates keep this file.
 
+### Seasonal launcher themes
+
+The start screen celebrates the season. These are launcher-only effects and don't change the game:
+
+- **Thanksgiving** (15–30 November): falling autumn leaves, a warm glow and a greeting in the top bar.
+
+To force a theme for testing or screenshots, set `LARECOMP_SEASON` to `thanksgiving`. Set it to `off` to turn the
+themes off.
+
 ## Publishing a release (in-app updates)
 
 **Update now** on the start screen installs releases from this repo. For each release:
